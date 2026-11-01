@@ -6,7 +6,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   TextInput,
+  Text,
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +22,7 @@ import {
   getLastInput,
   setLastInput,
 } from '@/utils/app-storage';
+import { diffWords } from '@/utils/word-diff';
 
 export default function PolishScreen() {
   const { historySentence, historyVersions, historyFastMode } = useLocalSearchParams<{
@@ -35,6 +38,7 @@ export default function PolishScreen() {
   const [error, setError] = useState('');
   const [copyErrorTone, setCopyErrorTone] = useState<string | null>(null);
   const [copiedTone, setCopiedTone] = useState<string | null>(null);
+  const [showChanges, setShowChanges] = useState(true);
   const requestId = useRef(0);
   const inputHydrated = useRef(false);
 
@@ -169,10 +173,36 @@ export default function PolishScreen() {
             <ThemedText type="small">Fast mode: double-check the grammar.</ThemedText>
           )}
 
+          {results && (
+            <ThemedView style={styles.changesToggle}>
+              <ThemedText>Show changes</ThemedText>
+              <Switch
+                value={showChanges}
+                onValueChange={setShowChanges}
+                trackColor={{ false: '#888', true: '#2f6fed' }}
+              />
+            </ThemedView>
+          )}
+
           {results?.map((result) => (
             <ThemedView key={result.tone} type="backgroundElement" style={styles.card}>
               <ThemedText style={styles.toneHeading}>{result.tone}</ThemedText>
-              <ThemedText>{result.polished}</ThemedText>
+              <ThemedText>
+                {diffWords(text, result.polished).map((token, index) =>
+                  showChanges && token.changed ? (
+                    <Text
+                      key={`${index}-${token.text}`}
+                      style={[
+                        styles.changedWord,
+                        { backgroundColor: isDark ? '#735c16' : '#fde68a' },
+                      ]}>
+                      {token.text}
+                    </Text>
+                  ) : (
+                    token.text
+                  ),
+                )}
+              </ThemedText>
 
               <ThemedText style={styles.label}>What changed</ThemedText>
               <ThemedText type="small">{result.note}</ThemedText>
@@ -221,6 +251,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 16,
+  },
+  changesToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  changedWord: {
+    fontWeight: '700',
+    borderRadius: 3,
   },
   label: {
     fontWeight: '700',
