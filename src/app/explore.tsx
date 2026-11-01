@@ -130,7 +130,7 @@ export default function PolishScreen() {
 
           {results?.map((result) => (
             <ThemedView key={result.tone} type="backgroundElement" style={styles.card}>
-              <ThemedText type="subtitle">{result.tone}</ThemedText>
+              <ThemedText style={styles.toneHeading}>{result.tone}</ThemedText>
               <ThemedText>{result.polished}</ThemedText>
 
               <ThemedText style={styles.label}>What changed</ThemedText>
@@ -194,11 +194,20 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 16,
-    padding: 18,
-    gap: 6,
+    padding: 14,
+    gap: 4,
+  },
+  toneHeading: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   copyButton: {
     alignSelf: 'flex-start',
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#2f6fed',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
 });

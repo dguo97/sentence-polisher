@@ -1,3 +1,5 @@
+import * as Speech from 'expo-speech';
+import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,20 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
-
-type WordResult = {
-  word: string;
-  partOfSpeech: string;
-  definition: string;
-  examples: string[];
-  synonyms: string[];
-};
+import { saveWord, type WordResult, removeSavedWord, getSavedWords } from '@/utils/saved-words';
 
 // Fake data for now. Later, replace the body of this function with a real API call.
 async function lookupWord(word: string): Promise<WordResult> {
   await new Promise((resolve) => setTimeout(resolve, 800));
   return {
     word,
+    pronunciation: '/həˈləʊ/',
     partOfSpeech: 'noun',
     definition: 'This is a placeholder definition. The AI will write the real one.',
     examples: [
@@ -41,6 +37,7 @@ export default function DictionaryScreen() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<WordResult | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef(0);
 
@@ -57,6 +54,12 @@ export default function DictionaryScreen() {
       const nextResult = await lookupWord(word);
       if (currentRequestId === requestId.current) {
         setResult(nextResult);
+        const savedWords = await getSavedWords();
+        setIsSaved(
+          savedWords.some(
+            (savedWord) => savedWord.word.toLowerCase() === nextResult.word.toLowerCase(),
+          ),
+        );
       }
     } catch {
       if (currentRequestId === requestId.current) {
@@ -66,6 +69,23 @@ export default function DictionaryScreen() {
       if (currentRequestId === requestId.current) {
         setLoading(false);
       }
+    }
+
+  }
+
+  async function handleSave() {
+    if (!result) return;
+
+    try {
+      if (isSaved) {
+        await removeSavedWord(result.word);
+        setIsSaved(false);
+      } else {
+        await saveWord(result);
+        setIsSaved(true);
+      }
+    } catch {
+      setError('Could not update your saved words.');
     }
   }
 
@@ -104,7 +124,23 @@ export default function DictionaryScreen() {
 
           {result && !loading && (
             <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="subtitle">{result.word}</ThemedText>
+              <ThemedView style={styles.wordHeader}>
+                <ThemedText type="subtitle">{result.word}</ThemedText>
+                <Pressable onPress={handleSave} accessibilityLabel={isSaved ? 'Remove saved word' : 'Save word'}>
+                  <ThemedText style={styles.star}>{isSaved ? '★' : '☆'}</ThemedText>
+                </Pressable>
+              </ThemedView>
+              <ThemedView style={styles.pronunciationRow}>
+                <ThemedText type="small">{result.pronunciation}</ThemedText>
+                <Pressable
+                  onPress={() => Speech.speak(result.word, { language: 'en-GB' })}
+                  accessibilityLabel={`Pronounce ${result.word}`}>
+                  <SymbolView
+                    name={{ ios: 'speaker.wave.2.fill', android: 'volume_up', web: 'volume_up' }}
+                    size={20}
+                  />
+                </Pressable>
+              </ThemedView>
               <ThemedText type="small">{result.partOfSpeech}</ThemedText>
 
               <ThemedText style={styles.label}>Definition</ThemedText>
@@ -165,6 +201,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     gap: 6,
+  },
+  wordHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pronunciationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  star: {
+    fontSize: 28,
+    color: '#e0a400',
   },
   label: {
     marginTop: 10,

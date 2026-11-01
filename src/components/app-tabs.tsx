@@ -12,14 +12,19 @@ export default function AppTabs() {
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
+      <NativeTabs.Trigger name="explore">
+        <NativeTabs.Trigger.Label>Polish</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="pencil" md="edit" />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Dictionary</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="book" md="menu_book" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Polish</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="pencil" md="edit" />
+      <NativeTabs.Trigger name="saved">
+        <NativeTabs.Trigger.Label>Saved</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="star.fill" md="star" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );
