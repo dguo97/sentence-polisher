@@ -1,8 +1,8 @@
 import * as Speech from 'expo-speech';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -10,9 +10,19 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import type { WordResult } from '@/api';
 import { getSavedWords, removeSavedWord } from '@/utils/saved-words';
+import {
+  clearHistory,
+  getSentenceHistory,
+  getWordHistory,
+  type SentenceHistoryItem,
+  type WordHistoryItem,
+} from '@/utils/app-storage';
 
 export default function SavedScreen() {
+  const [view, setView] = useState<'saved' | 'history'>('saved');
   const [savedWords, setSavedWords] = useState<WordResult[]>([]);
+  const [wordHistory, setWordHistory] = useState<WordHistoryItem[]>([]);
+  const [sentenceHistory, setSentenceHistory] = useState<SentenceHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -20,7 +30,14 @@ export default function SavedScreen() {
     try {
       setLoading(true);
       setError('');
-      setSavedWords(await getSavedWords());
+      const [nextSavedWords, nextWordHistory, nextSentenceHistory] = await Promise.all([
+        getSavedWords(),
+        getWordHistory(),
+        getSentenceHistory(),
+      ]);
+      setSavedWords(nextSavedWords);
+      setWordHistory(nextWordHistory);
+      setSentenceHistory(nextSentenceHistory);
     } catch {
       setError('Could not load your saved words.');
     } finally {
@@ -47,20 +64,73 @@ export default function SavedScreen() {
     }
   }
 
+  function openWordHistory(item: WordHistoryItem) {
+    router.push({ pathname: '/', params: { historyWord: item.word } });
+  }
+
+  function openSentenceHistory(item: SentenceHistoryItem) {
+    router.push({
+      pathname: '/explore',
+      params: {
+        historySentence: item.text,
+        historyVersions: JSON.stringify(item.versions),
+        historyFastMode: String(Boolean(item.fastMode)),
+      },
+    });
+  }
+
+  function confirmClearHistory() {
+    Alert.alert('Clear history?', 'This will remove all dictionary and polish history.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await clearHistory();
+              setWordHistory([]);
+              setSentenceHistory([]);
+              setError('');
+            } catch {
+              setError('Could not clear history.');
+            }
+          })();
+        },
+      },
+    ]);
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.content}>
           <ThemedText type="title">Saved</ThemedText>
+          <ThemedView style={styles.switch}>
+            <Pressable
+              onPress={() => setView('saved')}
+              style={[styles.switchOption, view === 'saved' && styles.selectedSwitchOption]}>
+              <ThemedText style={view === 'saved' ? styles.selectedSwitchText : undefined}>
+                Saved
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setView('history')}
+              style={[styles.switchOption, view === 'history' && styles.selectedSwitchOption]}>
+              <ThemedText style={view === 'history' ? styles.selectedSwitchText : undefined}>
+                History
+              </ThemedText>
+            </Pressable>
+          </ThemedView>
           {loading && <ActivityIndicator style={styles.spinner} />}
           {!!error && <ThemedText>{error}</ThemedText>}
-          {!loading && !error && savedWords.length === 0 && (
+          {view === 'saved' && !loading && !error && savedWords.length === 0 && (
             <ThemedText themeColor="textSecondary">
               Words you save from Dictionary will appear here.
             </ThemedText>
           )}
 
-          {savedWords.map((result) => (
+          {view === 'saved' && savedWords.map((result) => (
             <ThemedView key={result.word.toLowerCase()} type="backgroundElement" style={styles.card}>
               <ThemedView style={styles.wordHeader}>
                 <ThemedText type="subtitle">{result.word}</ThemedText>
@@ -92,6 +162,46 @@ export default function SavedScreen() {
               <ThemedText>{result.synonyms.join(', ')}</ThemedText>
             </ThemedView>
           ))}
+
+          {view === 'history' && !loading && (
+            <>
+              <ThemedText type="subtitle">Words</ThemedText>
+              {wordHistory.length === 0 && (
+                <ThemedText themeColor="textSecondary">No word history yet.</ThemedText>
+              )}
+              {wordHistory.map((item) => (
+                <Pressable key={`${item.word}-${item.time}`} onPress={() => openWordHistory(item)}>
+                  <ThemedView type="backgroundElement" style={styles.historyRow}>
+                    <ThemedText>{item.word}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {new Date(item.time).toLocaleString()}
+                    </ThemedText>
+                  </ThemedView>
+                </Pressable>
+              ))}
+
+              <ThemedText type="subtitle">Sentences</ThemedText>
+              {sentenceHistory.length === 0 && (
+                <ThemedText themeColor="textSecondary">No sentence history yet.</ThemedText>
+              )}
+              {sentenceHistory.map((item) => (
+                <Pressable
+                  key={`${item.text}-${item.time}`}
+                  onPress={() => openSentenceHistory(item)}>
+                  <ThemedView type="backgroundElement" style={styles.historyRow}>
+                    <ThemedText>{item.text}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {new Date(item.time).toLocaleString()}
+                    </ThemedText>
+                  </ThemedView>
+                </Pressable>
+              ))}
+
+              <Pressable onPress={confirmClearHistory} style={styles.clearHistoryButton}>
+                <ThemedText type="link">Clear history</ThemedText>
+              </Pressable>
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -113,6 +223,22 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingBottom: BottomTabInset + 24,
   },
+  switch: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  switchOption: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  selectedSwitchOption: {
+    backgroundColor: '#2f6fed',
+  },
+  selectedSwitchText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   spinner: {
     marginTop: 8,
   },
@@ -120,6 +246,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     gap: 6,
+  },
+  historyRow: {
+    borderRadius: 12,
+    padding: 14,
+    gap: 4,
+  },
+  clearHistoryButton: {
+    alignSelf: 'flex-start',
   },
   wordHeader: {
     flexDirection: 'row',

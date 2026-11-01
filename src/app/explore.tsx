@@ -19,7 +19,6 @@ import {
   addSentenceHistory,
   getLastInput,
   setLastInput,
-  type SentenceHistoryItem,
 } from '@/utils/app-storage';
 
 export default function PolishScreen() {
@@ -37,12 +36,17 @@ export default function PolishScreen() {
   const [copyErrorTone, setCopyErrorTone] = useState<string | null>(null);
   const [copiedTone, setCopiedTone] = useState<string | null>(null);
   const requestId = useRef(0);
+  const inputHydrated = useRef(false);
 
   useEffect(() => {
-    void getLastInput('polish').then(setText);
+    void getLastInput('polish').then((lastInput) => {
+      setText(lastInput);
+      inputHydrated.current = true;
+    });
   }, []);
 
   useEffect(() => {
+    if (!inputHydrated.current) return;
     void setLastInput('polish', text);
   }, [text]);
 
@@ -66,6 +70,7 @@ export default function PolishScreen() {
   }, [historyFastMode, historySentence, historyVersions]);
 
   function clearPolish() {
+    requestId.current += 1;
     setText('');
     setResults(null);
     setFastMode(false);

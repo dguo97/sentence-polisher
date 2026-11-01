@@ -36,12 +36,17 @@ export default function DictionaryScreen() {
   const [fastMode, setFastMode] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef(0);
+  const inputHydrated = useRef(false);
 
   useEffect(() => {
-    void getLastInput('dictionary').then(setQuery);
+    void getLastInput('dictionary').then((lastInput) => {
+      setQuery(lastInput);
+      inputHydrated.current = true;
+    });
   }, []);
 
   useEffect(() => {
+    if (!inputHydrated.current) return;
     void setLastInput('dictionary', query);
   }, [query]);
 
@@ -73,6 +78,7 @@ export default function DictionaryScreen() {
   }, [historyWord]);
 
   function clearLookup() {
+    requestId.current += 1;
     setQuery('');
     setResult(null);
     setFastMode(false);
