@@ -13,50 +13,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
-
-type Tone =
-  | 'Natural and conversational'
-  | 'Simple and clear'
-  | 'Close to original wording'
-  | 'Concise'
-  | 'Slightly stronger and more confident'
-  | 'Reflective and thoughtful';
-
-type PolishResult = {
-  tone: Tone;
-  polished: string;
-  note: string;
-};
-
-const tones: Tone[] = [
-  'Natural and conversational',
-  'Simple and clear',
-  'Close to original wording',
-  'Concise',
-  'Slightly stronger and more confident',
-  'Reflective and thoughtful',
-];
-
-// Fake data for now. Later, replace the body of this function with a real API call.
-async function polishSentence(text: string): Promise<PolishResult[]> {
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  const trimmedText = text.trim();
-  return tones.map((tone) => ({
-    tone,
-    polished: `${tone}: ${trimmedText}`,
-    note: `Adjusted the wording to feel ${tone.toLowerCase()}.`,
-  }));
-}
+import { polishSentence, type PolishResult, type PolishVersion } from '@/api';
 
 export default function PolishScreen() {
   const isDark = useColorScheme() === 'dark';
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<PolishResult[] | null>(null);
+  const [results, setResults] = useState<PolishVersion[] | null>(null);
+  const [fastMode, setFastMode] = useState(false);
   const [error, setError] = useState('');
-  const [copyErrorTone, setCopyErrorTone] = useState<Tone | null>(null);
-  const [copiedTone, setCopiedTone] = useState<Tone | null>(null);
+  const [copyErrorTone, setCopyErrorTone] = useState<string | null>(null);
+  const [copiedTone, setCopiedTone] = useState<string | null>(null);
   const requestId = useRef(0);
 
   async function handlePolish() {
@@ -69,15 +36,17 @@ export default function PolishScreen() {
     setCopyErrorTone(null);
     setCopiedTone(null);
     setResults(null);
+    setFastMode(false);
 
     try {
-      const nextResults = await polishSentence(sentence);
+      const nextResult: PolishResult = await polishSentence(sentence);
       if (currentRequestId === requestId.current) {
-        setResults(nextResults);
+        setResults(nextResult.versions);
+        setFastMode(Boolean(nextResult.fastMode));
       }
-    } catch {
+    } catch (requestError) {
       if (currentRequestId === requestId.current) {
-        setError('Something went wrong. Please try again.');
+        setError(requestError instanceof Error ? requestError.message : String(requestError));
       }
     } finally {
       if (currentRequestId === requestId.current) {
@@ -86,7 +55,7 @@ export default function PolishScreen() {
     }
   }
 
-  async function handleCopy(result: PolishResult) {
+  async function handleCopy(result: PolishVersion) {
     try {
       await Clipboard.setStringAsync(result.polished);
       setCopyErrorTone(null);
@@ -127,6 +96,9 @@ export default function PolishScreen() {
 
           {loading && <ActivityIndicator style={styles.spinner} />}
           {!!error && <ThemedText>{error}</ThemedText>}
+          {results && fastMode && (
+            <ThemedText type="small">Fast mode: double-check the grammar.</ThemedText>
+          )}
 
           {results?.map((result) => (
             <ThemedView key={result.tone} type="backgroundElement" style={styles.card}>

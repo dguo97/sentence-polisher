@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
-import { getSavedWords, removeSavedWord, type WordResult } from '@/utils/saved-words';
+import type { WordResult } from '@/api';
+import { getSavedWords, removeSavedWord } from '@/utils/saved-words';
 
 export default function SavedScreen() {
   const [savedWords, setSavedWords] = useState<WordResult[]>([]);

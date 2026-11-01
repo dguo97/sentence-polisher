@@ -14,23 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
-import { saveWord, type WordResult, removeSavedWord, getSavedWords } from '@/utils/saved-words';
-
-// Fake data for now. Later, replace the body of this function with a real API call.
-async function lookupWord(word: string): Promise<WordResult> {
-  await new Promise((resolve) => setTimeout(resolve, 800));
-  return {
-    word,
-    pronunciation: '/həˈləʊ/',
-    partOfSpeech: 'noun',
-    definition: 'This is a placeholder definition. The AI will write the real one.',
-    examples: [
-      `She looked up the word "${word}" in the dictionary.`,
-      `He used "${word}" in a sentence to remember it.`,
-    ],
-    synonyms: ['example', 'sample', 'placeholder'],
-  };
-}
+import { lookupWord, type WordResult } from '@/api';
+import { saveWord, removeSavedWord, getSavedWords } from '@/utils/saved-words';
 
 export default function DictionaryScreen() {
   const isDark = useColorScheme() === 'dark';
@@ -38,6 +23,7 @@ export default function DictionaryScreen() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<WordResult | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [fastMode, setFastMode] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef(0);
 
@@ -49,11 +35,13 @@ export default function DictionaryScreen() {
     setLoading(true);
     setError('');
     setResult(null);
+    setFastMode(false);
 
     try {
       const nextResult = await lookupWord(word);
       if (currentRequestId === requestId.current) {
         setResult(nextResult);
+        setFastMode(Boolean(nextResult.fastMode));
         const savedWords = await getSavedWords();
         setIsSaved(
           savedWords.some(
@@ -61,16 +49,15 @@ export default function DictionaryScreen() {
           ),
         );
       }
-    } catch {
+    } catch (requestError) {
       if (currentRequestId === requestId.current) {
-        setError('Something went wrong. Please try again.');
+        setError(requestError instanceof Error ? requestError.message : String(requestError));
       }
     } finally {
       if (currentRequestId === requestId.current) {
         setLoading(false);
       }
     }
-
   }
 
   async function handleSave() {
@@ -121,6 +108,9 @@ export default function DictionaryScreen() {
 
           {loading && <ActivityIndicator style={styles.spinner} />}
           {!!error && <ThemedText>{error}</ThemedText>}
+          {result && fastMode && (
+            <ThemedText type="small">Fast mode: double-check the grammar.</ThemedText>
+          )}
 
           {result && !loading && (
             <ThemedView type="backgroundElement" style={styles.card}>

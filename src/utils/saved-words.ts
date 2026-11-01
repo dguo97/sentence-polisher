@@ -1,13 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type WordResult = {
-  word: string;
-  pronunciation: string;
-  partOfSpeech: string;
-  definition: string;
-  examples: string[];
-  synonyms: string[];
-};
+import type { WordResult } from '@/api';
+
+export type { WordResult };
 
 const SAVED_WORDS_KEY = '@word-polish/saved-words';
 
