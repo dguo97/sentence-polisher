@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -42,18 +42,30 @@ export default function DictionaryScreen() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<WordResult | null>(null);
   const [error, setError] = useState('');
+  const requestId = useRef(0);
 
   async function handleLookup() {
     const word = query.trim();
     if (!word) return;
+
+    const currentRequestId = ++requestId.current;
     setLoading(true);
     setError('');
+    setResult(null);
+
     try {
-      setResult(await lookupWord(word));
+      const nextResult = await lookupWord(word);
+      if (currentRequestId === requestId.current) {
+        setResult(nextResult);
+      }
     } catch {
-      setError('Something went wrong. Please try again.');
+      if (currentRequestId === requestId.current) {
+        setError('Something went wrong. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestId.current) {
+        setLoading(false);
+      }
     }
   }
 

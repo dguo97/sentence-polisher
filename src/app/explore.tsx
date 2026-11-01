@@ -1,180 +1,237 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
+import { useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  useColorScheme,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
+type Tone =
+  | 'Natural and conversational'
+  | 'Simple and clear'
+  | 'Close to original wording'
+  | 'Concise'
+  | 'Slightly stronger and more confident'
+  | 'Reflective and thoughtful';
+
+type PolishResult = {
+  polishedText: string;
+  note: string;
+};
+
+const tones: Tone[] = [
+  'Natural and conversational',
+  'Simple and clear',
+  'Close to original wording',
+  'Concise',
+  'Slightly stronger and more confident',
+  'Reflective and thoughtful',
+];
+
+// Fake data for now. Later, replace the body of this function with a real API call.
+async function polishSentence(text: string, tone: Tone): Promise<PolishResult> {
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  const trimmedText = text.trim();
+  const polishedText = `${trimmedText.replace(/[.!?]*$/, '')}.`;
+
+  return {
+    polishedText,
+    note: `Adjusted the wording to feel ${tone.toLowerCase()}.`,
   };
-  const theme = useTheme();
+}
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+export default function PolishScreen() {
+  const isDark = useColorScheme() === 'dark';
+  const [text, setText] = useState('');
+  const [tone, setTone] = useState<Tone>('Natural and conversational');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<PolishResult | null>(null);
+  const [error, setError] = useState('');
+  const [copyError, setCopyError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const requestId = useRef(0);
+
+  async function handlePolish() {
+    const sentence = text.trim();
+    if (!sentence) return;
+
+    const currentRequestId = ++requestId.current;
+    setLoading(true);
+    setError('');
+    setCopyError('');
+    setCopied(false);
+    setResult(null);
+
+    try {
+      const nextResult = await polishSentence(sentence, tone);
+      if (currentRequestId === requestId.current) {
+        setResult(nextResult);
+      }
+    } catch {
+      if (currentRequestId === requestId.current) {
+        setError('Something went wrong. Please try again.');
+      }
+    } finally {
+      if (currentRequestId === requestId.current) {
+        setLoading(false);
+      }
+    }
+  }
+
+  async function handleCopy() {
+    if (!result) return;
+
+    try {
+      await Clipboard.setStringAsync(result.polishedText);
+      setCopyError('');
+      setCopied(true);
+    } catch {
+      setCopied(false);
+      setCopyError('Could not copy the polished text.');
+    }
+  }
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled">
+          <ThemedText type="title">Polish</ThemedText>
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Type a sentence to polish"
+            placeholderTextColor="#888"
+            multiline
+            textAlignVertical="top"
+            style={[styles.input, { color: isDark ? '#fff' : '#000' }]}
+          />
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+          <ThemedText style={styles.label}>Tone</ThemedText>
+          <ThemedView type="backgroundElement" style={styles.toneSelector}>
+            {tones.map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => setTone(option)}
+                style={[styles.toneOption, tone === option && styles.selectedTone]}>
+                <ThemedText style={tone === option ? styles.selectedToneText : undefined}>
+                  {option}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </ThemedView>
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
+          <Pressable
+            onPress={handlePolish}
+            disabled={loading || !text.trim()}
+            style={({ pressed }) => [
+              styles.button,
+              (pressed || loading || !text.trim()) && { opacity: 0.6 },
+            ]}>
+            <ThemedText style={styles.buttonText}>Polish</ThemedText>
+          </Pressable>
+
+          {loading && <ActivityIndicator style={styles.spinner} />}
+          {!!error && <ThemedText>{error}</ThemedText>}
+
+          {result && !loading && (
+            <ThemedView type="backgroundElement" style={styles.card}>
+              <ThemedText type="subtitle">Polished sentence</ThemedText>
+              <ThemedText>{result.polishedText}</ThemedText>
+
+              <ThemedText style={styles.label}>What changed</ThemedText>
+              <ThemedText type="small">{result.note}</ThemedText>
+
+              <Pressable onPress={handleCopy} style={styles.copyButton}>
+                <ThemedText type="link">{copied ? 'Copied' : 'Copy'}</ThemedText>
+              </Pressable>
+              {!!copyError && <ThemedText>{copyError}</ThemedText>}
             </ThemedView>
-          </Collapsible>
-
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
   container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
+    flex: 1,
     flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
     justifyContent: 'center',
-    gap: Spacing.one,
+  },
+  safeArea: {
+    flex: 1,
+    maxWidth: MaxContentWidth,
+  },
+  content: {
+    padding: 24,
+    gap: 16,
+    paddingBottom: BottomTabInset + 24,
+  },
+  input: {
+    minHeight: 140,
+    borderWidth: 1,
+    borderColor: '#888',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  label: {
+    fontWeight: '700',
+  },
+  toneSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  toneOption: {
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  selectedTone: {
+    backgroundColor: '#2f6fed',
+  },
+  selectedToneText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  button: {
+    backgroundColor: '#2f6fed',
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
-  collapsibleContent: {
-    alignItems: 'center',
+  spinner: {
+    marginTop: 8,
   },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
+  card: {
+    borderRadius: 16,
+    padding: 18,
+    gap: 6,
   },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+  copyButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
   },
 });
