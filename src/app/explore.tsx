@@ -23,7 +23,8 @@ type Tone =
   | 'Reflective and thoughtful';
 
 type PolishResult = {
-  polishedText: string;
+  tone: Tone;
+  polished: string;
   note: string;
 };
 
@@ -37,27 +38,25 @@ const tones: Tone[] = [
 ];
 
 // Fake data for now. Later, replace the body of this function with a real API call.
-async function polishSentence(text: string, tone: Tone): Promise<PolishResult> {
+async function polishSentence(text: string): Promise<PolishResult[]> {
   await new Promise((resolve) => setTimeout(resolve, 800));
 
   const trimmedText = text.trim();
-  const polishedText = `${trimmedText.replace(/[.!?]*$/, '')}.`;
-
-  return {
-    polishedText,
+  return tones.map((tone) => ({
+    tone,
+    polished: `${tone}: ${trimmedText}`,
     note: `Adjusted the wording to feel ${tone.toLowerCase()}.`,
-  };
+  }));
 }
 
 export default function PolishScreen() {
   const isDark = useColorScheme() === 'dark';
   const [text, setText] = useState('');
-  const [tone, setTone] = useState<Tone>('Natural and conversational');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<PolishResult | null>(null);
+  const [results, setResults] = useState<PolishResult[] | null>(null);
   const [error, setError] = useState('');
-  const [copyError, setCopyError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copyErrorTone, setCopyErrorTone] = useState<Tone | null>(null);
+  const [copiedTone, setCopiedTone] = useState<Tone | null>(null);
   const requestId = useRef(0);
 
   async function handlePolish() {
@@ -67,14 +66,14 @@ export default function PolishScreen() {
     const currentRequestId = ++requestId.current;
     setLoading(true);
     setError('');
-    setCopyError('');
-    setCopied(false);
-    setResult(null);
+    setCopyErrorTone(null);
+    setCopiedTone(null);
+    setResults(null);
 
     try {
-      const nextResult = await polishSentence(sentence, tone);
+      const nextResults = await polishSentence(sentence);
       if (currentRequestId === requestId.current) {
-        setResult(nextResult);
+        setResults(nextResults);
       }
     } catch {
       if (currentRequestId === requestId.current) {
@@ -87,16 +86,14 @@ export default function PolishScreen() {
     }
   }
 
-  async function handleCopy() {
-    if (!result) return;
-
+  async function handleCopy(result: PolishResult) {
     try {
-      await Clipboard.setStringAsync(result.polishedText);
-      setCopyError('');
-      setCopied(true);
+      await Clipboard.setStringAsync(result.polished);
+      setCopyErrorTone(null);
+      setCopiedTone(result.tone);
     } catch {
-      setCopied(false);
-      setCopyError('Could not copy the polished text.');
+      setCopiedTone(null);
+      setCopyErrorTone(result.tone);
     }
   }
 
@@ -118,20 +115,6 @@ export default function PolishScreen() {
             style={[styles.input, { color: isDark ? '#fff' : '#000' }]}
           />
 
-          <ThemedText style={styles.label}>Tone</ThemedText>
-          <ThemedView type="backgroundElement" style={styles.toneSelector}>
-            {tones.map((option) => (
-              <Pressable
-                key={option}
-                onPress={() => setTone(option)}
-                style={[styles.toneOption, tone === option && styles.selectedTone]}>
-                <ThemedText style={tone === option ? styles.selectedToneText : undefined}>
-                  {option}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </ThemedView>
-
           <Pressable
             onPress={handlePolish}
             disabled={loading || !text.trim()}
@@ -145,20 +128,24 @@ export default function PolishScreen() {
           {loading && <ActivityIndicator style={styles.spinner} />}
           {!!error && <ThemedText>{error}</ThemedText>}
 
-          {result && !loading && (
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="subtitle">Polished sentence</ThemedText>
-              <ThemedText>{result.polishedText}</ThemedText>
+          {results?.map((result) => (
+            <ThemedView key={result.tone} type="backgroundElement" style={styles.card}>
+              <ThemedText type="subtitle">{result.tone}</ThemedText>
+              <ThemedText>{result.polished}</ThemedText>
 
               <ThemedText style={styles.label}>What changed</ThemedText>
               <ThemedText type="small">{result.note}</ThemedText>
 
-              <Pressable onPress={handleCopy} style={styles.copyButton}>
-                <ThemedText type="link">{copied ? 'Copied' : 'Copy'}</ThemedText>
+              <Pressable onPress={() => handleCopy(result)} style={styles.copyButton}>
+                <ThemedText type="link">
+                  {copiedTone === result.tone ? 'Copied' : 'Copy'}
+                </ThemedText>
               </Pressable>
-              {!!copyError && <ThemedText>{copyError}</ThemedText>}
+              {copyErrorTone === result.tone && (
+                <ThemedText>Could not copy the polished text.</ThemedText>
+              )}
             </ThemedView>
-          )}
+          ))}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -191,26 +178,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontWeight: '700',
-  },
-  toneSelector: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
-  },
-  toneOption: {
-    alignItems: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  selectedTone: {
-    backgroundColor: '#2f6fed',
-  },
-  selectedToneText: {
-    color: '#fff',
-    fontWeight: '600',
   },
   button: {
     backgroundColor: '#2f6fed',
