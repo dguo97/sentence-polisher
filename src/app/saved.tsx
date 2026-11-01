@@ -20,6 +20,9 @@ import {
 
 export default function SavedScreen() {
   const [view, setView] = useState<'saved' | 'history'>('saved');
+  const [practising, setPractising] = useState(false);
+  const [practiceDeck, setPracticeDeck] = useState<WordResult[]>([]);
+  const [showAnswer, setShowAnswer] = useState(false);
   const [savedWords, setSavedWords] = useState<WordResult[]>([]);
   const [wordHistory, setWordHistory] = useState<WordHistoryItem[]>([]);
   const [sentenceHistory, setSentenceHistory] = useState<SentenceHistoryItem[]>([]);
@@ -101,6 +104,38 @@ export default function SavedScreen() {
     ]);
   }
 
+  function startPractice() {
+    const shuffledWords = [...savedWords];
+    for (let index = shuffledWords.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffledWords[index], shuffledWords[swapIndex]] = [
+        shuffledWords[swapIndex],
+        shuffledWords[index],
+      ];
+    }
+    setPracticeDeck(shuffledWords);
+    setShowAnswer(false);
+    setPractising(true);
+  }
+
+  function leavePractice() {
+    setPractising(false);
+    setPracticeDeck([]);
+    setShowAnswer(false);
+  }
+
+  function handlePracticeAgain() {
+    const [currentWord, ...remainingWords] = practiceDeck;
+    if (!currentWord) return;
+    setPracticeDeck([...remainingWords, currentWord]);
+    setShowAnswer(false);
+  }
+
+  function handlePracticeGotIt() {
+    setPracticeDeck((currentDeck) => currentDeck.slice(1));
+    setShowAnswer(false);
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -124,13 +159,84 @@ export default function SavedScreen() {
           </ThemedView>
           {loading && <ActivityIndicator style={styles.spinner} />}
           {!!error && <ThemedText>{error}</ThemedText>}
+          {view === 'saved' && !practising && !loading && savedWords.length > 0 && (
+            <Pressable onPress={startPractice} style={styles.practiceButton}>
+              <ThemedText style={styles.buttonText}>Practise</ThemedText>
+            </Pressable>
+          )}
+          {view === 'saved' && practising && !loading && (
+            <ThemedView type="backgroundElement" style={styles.practiceCard}>
+              {practiceDeck.length === 0 ? (
+                <>
+                  <ThemedText type="subtitle">Round complete</ThemedText>
+                  <ThemedText themeColor="textSecondary">
+                    You practised all the saved words in this round.
+                  </ThemedText>
+                  <Pressable onPress={leavePractice} style={styles.practiceButton}>
+                    <ThemedText style={styles.buttonText}>Back to saved words</ThemedText>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <ThemedText type="subtitle">{practiceDeck[0].word}</ThemedText>
+                  <ThemedView style={styles.pronunciationRow}>
+                    <ThemedText type="small">{practiceDeck[0].pronunciation}</ThemedText>
+                    <Pressable
+                      onPress={() =>
+                        Speech.speak(practiceDeck[0].word, { language: 'en-GB' })
+                      }
+                      accessibilityLabel={`Pronounce ${practiceDeck[0].word}`}>
+                      <SymbolView
+                        name={{
+                          ios: 'speaker.wave.2.fill',
+                          android: 'volume_up',
+                          web: 'volume_up',
+                        }}
+                        size={20}
+                      />
+                    </Pressable>
+                  </ThemedView>
+
+                  {!showAnswer ? (
+                    <Pressable onPress={() => setShowAnswer(true)} style={styles.practiceButton}>
+                      <ThemedText style={styles.buttonText}>Show answer</ThemedText>
+                    </Pressable>
+                  ) : (
+                    <>
+                      <ThemedText style={styles.label}>Definition</ThemedText>
+                      <ThemedText>{practiceDeck[0].definition}</ThemedText>
+                      <ThemedText style={styles.label}>Examples</ThemedText>
+                      {practiceDeck[0].examples.map((example, index) => (
+                        <ThemedText key={index}>• {example}</ThemedText>
+                      ))}
+                      <ThemedText style={styles.label}>Synonyms</ThemedText>
+                      <ThemedText>{practiceDeck[0].synonyms.join(', ')}</ThemedText>
+                      <ThemedView style={styles.practiceActions}>
+                        <Pressable
+                          onPress={handlePracticeAgain}
+                          style={styles.secondaryPracticeButton}>
+                          <ThemedText>Again</ThemedText>
+                        </Pressable>
+                        <Pressable onPress={handlePracticeGotIt} style={styles.practiceButton}>
+                          <ThemedText style={styles.buttonText}>Got it</ThemedText>
+                        </Pressable>
+                      </ThemedView>
+                    </>
+                  )}
+                  <Pressable onPress={leavePractice} style={styles.backButton}>
+                    <ThemedText type="link">Back to saved words</ThemedText>
+                  </Pressable>
+                </>
+              )}
+            </ThemedView>
+          )}
           {view === 'saved' && !loading && !error && savedWords.length === 0 && (
             <ThemedText themeColor="textSecondary">
-              Words you save from Dictionary will appear here.
+              Save some words from Dictionary to practise them here.
             </ThemedText>
           )}
 
-          {view === 'saved' && savedWords.map((result) => (
+          {view === 'saved' && !practising && savedWords.map((result) => (
             <ThemedView key={result.word.toLowerCase()} type="backgroundElement" style={styles.card}>
               <ThemedView style={styles.wordHeader}>
                 <ThemedText type="subtitle">{result.word}</ThemedText>
@@ -254,6 +360,39 @@ const styles = StyleSheet.create({
   },
   clearHistoryButton: {
     alignSelf: 'flex-start',
+  },
+  practiceButton: {
+    backgroundColor: '#2f6fed',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  practiceCard: {
+    borderRadius: 16,
+    padding: 18,
+    gap: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  practiceActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  secondaryPracticeButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#2f6fed',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  backButton: {
+    alignSelf: 'center',
+    marginTop: 4,
   },
   wordHeader: {
     flexDirection: 'row',
