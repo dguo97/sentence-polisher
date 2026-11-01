@@ -42,6 +42,10 @@ export default function DictionaryScreen() {
   }, []);
 
   useEffect(() => {
+    void setLastInput('dictionary', query);
+  }, [query]);
+
+  useEffect(() => {
     if (!historyWord) return;
 
     const word = Array.isArray(historyWord) ? historyWord[0] : historyWord;
@@ -52,12 +56,16 @@ export default function DictionaryScreen() {
         setResult(cachedResult);
         setFastMode(Boolean(cachedResult.fastMode));
         setError('');
-        const savedWords = await getSavedWords();
-        setIsSaved(
-          savedWords.some(
-            (savedWord) => savedWord.word.toLowerCase() === cachedResult.word.toLowerCase(),
-          ),
-        );
+        try {
+          const savedWords = await getSavedWords();
+          setIsSaved(
+            savedWords.some(
+              (savedWord) => savedWord.word.toLowerCase() === cachedResult.word.toLowerCase(),
+            ),
+          );
+        } catch {
+          setError('Could not load your saved words.');
+        }
       } else {
         setError('That history result is no longer cached.');
       }
@@ -239,6 +247,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
+  },
+  utilityRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
   },
   button: {
     backgroundColor: '#2f6fed',

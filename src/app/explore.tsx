@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
-import { useRef, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -14,8 +15,19 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { polishSentence, type PolishResult, type PolishVersion } from '@/api';
+import {
+  addSentenceHistory,
+  getLastInput,
+  setLastInput,
+  type SentenceHistoryItem,
+} from '@/utils/app-storage';
 
 export default function PolishScreen() {
+  const { historySentence, historyVersions, historyFastMode } = useLocalSearchParams<{
+    historySentence?: string;
+    historyVersions?: string;
+    historyFastMode?: string;
+  }>();
   const isDark = useColorScheme() === 'dark';
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,6 +37,48 @@ export default function PolishScreen() {
   const [copyErrorTone, setCopyErrorTone] = useState<string | null>(null);
   const [copiedTone, setCopiedTone] = useState<string | null>(null);
   const requestId = useRef(0);
+
+  useEffect(() => {
+    void getLastInput('polish').then(setText);
+  }, []);
+
+  useEffect(() => {
+    void setLastInput('polish', text);
+  }, [text]);
+
+  useEffect(() => {
+    if (!historySentence || !historyVersions) return;
+
+    const sentence = Array.isArray(historySentence) ? historySentence[0] : historySentence;
+    const serializedVersions = Array.isArray(historyVersions)
+      ? historyVersions[0]
+      : historyVersions;
+    try {
+      const savedVersions = JSON.parse(serializedVersions) as PolishVersion[];
+      if (!Array.isArray(savedVersions)) throw new Error('Invalid history.');
+      setText(sentence);
+      setResults(savedVersions);
+      setFastMode(historyFastMode === 'true');
+      setError('');
+    } catch {
+      setError('Could not open that sentence history.');
+    }
+  }, [historyFastMode, historySentence, historyVersions]);
+
+  function clearPolish() {
+    setText('');
+    setResults(null);
+    setFastMode(false);
+    setError('');
+  }
+
+  async function handlePaste() {
+    try {
+      setText(await Clipboard.getStringAsync());
+    } catch {
+      setError('Could not paste from the clipboard.');
+    }
+  }
 
   async function handlePolish() {
     const sentence = text.trim();
@@ -43,6 +97,7 @@ export default function PolishScreen() {
       if (currentRequestId === requestId.current) {
         setResults(nextResult.versions);
         setFastMode(Boolean(nextResult.fastMode));
+        await addSentenceHistory(sentence, nextResult.versions, nextResult.fastMode);
       }
     } catch (requestError) {
       if (currentRequestId === requestId.current) {
@@ -83,6 +138,15 @@ export default function PolishScreen() {
             textAlignVertical="top"
             style={[styles.input, { color: isDark ? '#fff' : '#000' }]}
           />
+
+          <ThemedView style={styles.utilityRow}>
+            <Pressable onPress={handlePaste}>
+              <ThemedText type="link">Paste</ThemedText>
+            </Pressable>
+            <Pressable onPress={clearPolish}>
+              <ThemedText type="link">Clear</ThemedText>
+            </Pressable>
+          </ThemedView>
 
           <Pressable
             onPress={handlePolish}
@@ -147,6 +211,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
+  },
+  utilityRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
   },
   label: {
     fontWeight: '700',
