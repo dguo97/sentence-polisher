@@ -1,6 +1,8 @@
 import * as Speech from 'expo-speech';
 import { SymbolView } from 'expo-symbols';
-import { useRef, useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,8 +18,16 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { lookupWord, type WordResult } from '@/api';
 import { saveWord, removeSavedWord, getSavedWords } from '@/utils/saved-words';
+import {
+  addWordHistory,
+  cacheWord,
+  getCachedWord,
+  getLastInput,
+  setLastInput,
+} from '@/utils/app-storage';
 
 export default function DictionaryScreen() {
+  const { historyWord } = useLocalSearchParams<{ historyWord?: string }>();
   const isDark = useColorScheme() === 'dark';
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,6 +36,48 @@ export default function DictionaryScreen() {
   const [fastMode, setFastMode] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef(0);
+
+  useEffect(() => {
+    void getLastInput('dictionary').then(setQuery);
+  }, []);
+
+  useEffect(() => {
+    if (!historyWord) return;
+
+    const word = Array.isArray(historyWord) ? historyWord[0] : historyWord;
+    void (async () => {
+      const cachedResult = await getCachedWord(word);
+      setQuery(word);
+      if (cachedResult) {
+        setResult(cachedResult);
+        setFastMode(Boolean(cachedResult.fastMode));
+        setError('');
+        const savedWords = await getSavedWords();
+        setIsSaved(
+          savedWords.some(
+            (savedWord) => savedWord.word.toLowerCase() === cachedResult.word.toLowerCase(),
+          ),
+        );
+      } else {
+        setError('That history result is no longer cached.');
+      }
+    })();
+  }, [historyWord]);
+
+  function clearLookup() {
+    setQuery('');
+    setResult(null);
+    setFastMode(false);
+    setError('');
+  }
+
+  async function handlePaste() {
+    try {
+      setQuery(await Clipboard.getStringAsync());
+    } catch {
+      setError('Could not paste from the clipboard.');
+    }
+  }
 
   async function handleLookup() {
     const word = query.trim();
@@ -38,7 +90,12 @@ export default function DictionaryScreen() {
     setFastMode(false);
 
     try {
-      const nextResult = await lookupWord(word);
+      const cachedResult = await getCachedWord(word);
+      const nextResult = cachedResult ?? (await lookupWord(word));
+      if (!cachedResult) {
+        await cacheWord(word, nextResult);
+      }
+      await addWordHistory(word);
       if (currentRequestId === requestId.current) {
         setResult(nextResult);
         setFastMode(Boolean(nextResult.fastMode));
@@ -95,6 +152,15 @@ export default function DictionaryScreen() {
             returnKeyType="search"
             style={[styles.input, { color: isDark ? '#fff' : '#000' }]}
           />
+
+          <ThemedView style={styles.utilityRow}>
+            <Pressable onPress={handlePaste}>
+              <ThemedText type="link">Paste</ThemedText>
+            </Pressable>
+            <Pressable onPress={clearLookup}>
+              <ThemedText type="link">Clear</ThemedText>
+            </Pressable>
+          </ThemedView>
 
           <Pressable
             onPress={handleLookup}

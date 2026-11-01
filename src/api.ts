@@ -1,5 +1,6 @@
 // Put this file at src/api.ts in your Expo project.
 const API_URL = 'https://word-polish-api.dguo97.workers.dev';
+const REQUEST_TIMEOUT_MS = 15_000;
 // Leave empty unless you create an APP_SECRET secret in Cloudflare.
 const APP_SECRET = '';
 
@@ -25,23 +26,37 @@ export type PolishResult = {
 };
 
 async function post<T>(path: string, body: object): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (APP_SECRET) {
+    headers['x-app-secret'] = APP_SECRET;
+  }
+
   try {
     response = await fetch(`${API_URL}${path}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(APP_SECRET ? { 'x-app-secret': APP_SECRET } : {}),
-      },
+      headers,
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('The request took too long. Check your connection and try again.');
+    }
     throw new Error('No connection. Check your internet and try again.');
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.error ?? 'Something went wrong. Please try again.');
+    throw new Error(
+      data?.error ?? `The service is unavailable right now (HTTP ${response.status}).`,
+    );
   }
   return data as T;
 }
