@@ -1,6 +1,6 @@
 // Put this file at src/api.ts in your Expo project.
 const API_URL = 'https://word-polish-api.dguo97.workers.dev';
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 45_000;
 // Leave empty unless you create an APP_SECRET secret in Cloudflare.
 const APP_SECRET = '';
 

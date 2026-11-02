@@ -136,14 +136,22 @@ export default function DictionaryScreen() {
 
     try {
       if (isSaved) {
-        await removeSavedWord(result.word);
+        const removed = await removeSavedWord(result.word);
+        if (!removed) {
+          setError("Couldn't remove the word. Please try again.");
+          return;
+        }
         setIsSaved(false);
       } else {
-        await saveWord(result);
+        const saved = await saveWord(result);
+        if (!saved) {
+          setError("Couldn't save the word. Please try again.");
+          return;
+        }
         setIsSaved(true);
       }
     } catch {
-      setError('Could not update your saved words.');
+      setError("Couldn't update your saved words. Please try again.");
     }
   }
 

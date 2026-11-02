@@ -56,14 +56,18 @@ export default function SavedScreen() {
 
   async function handleRemove(word: string) {
     try {
-      await removeSavedWord(word);
+      const removed = await removeSavedWord(word);
+      if (!removed) {
+        setError("Couldn't remove the word. Please try again.");
+        return;
+      }
       setSavedWords((currentWords) =>
         currentWords.filter(
           (savedWord) => savedWord.word.toLowerCase() !== word.toLowerCase(),
         ),
       );
     } catch {
-      setError('Could not remove that saved word.');
+      setError("Couldn't remove the word. Please try again.");
     }
   }
 
