@@ -13,6 +13,8 @@ Other features: save words to review later, practice mode for saved words, histo
 
 I sometimes write personal journal entries, and I like to use AI to polish my sentences and look up words. But a general AI chat makes it very easy to drift into other things. I built Sentence Polisher as a small productivity tool for myself: it does these two jobs and nothing else. There is no chat box and no open-ended assistant, so it is easier to stay focused on the writing.
 
+Building it was also a good experience: I am impressed by how AI has streamlined the app development process.
+
 ## How it works
 
 ```
